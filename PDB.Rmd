@@ -4,15 +4,13 @@ author: "Ghanyy, 106080"
 date: "19 listopada 2015"
 output: html_document
 ---
-___
+
 
 # Introduction
-___
 
 Purpose of this project is to analyse data from [Protein Data Bank](http://www.rcsb.org/) (PDB) using some basic [R](https://www.r-project.org/) functionalities.
 
 # Table of contents
-___
 
 1. [Libraries](#libraries)
 2. [Initialisation](#initialisation)
@@ -28,7 +26,6 @@ ___
   * [Distribution of all columns with `part_01` prefix](#distribution-of-all-columns-with-part_01-prefix)
   
 ## Libraries
-___
 
 Following libraries were used:
 ```{r libraries, message=FALSE}
@@ -41,7 +38,6 @@ library(corrplot) # used for displaying correlation matrix.
 ```
 
 ## Initialisation
-___
 
   In order to obtain the same results every time seed is fixed:
 ```{r initialisation, cache=TRUE}
@@ -49,7 +45,6 @@ set.seed(106080)
 ```
 
 ## Data preparation
-___
 
   1. Load raw data from file:
 ```{r data-preparation, cache=TRUE}
@@ -72,7 +67,6 @@ filterNAVector <- !sapply(PdbFilteredData, function(x)all(is.na(x)))
 PdbFilteredData <- PdbFilteredData[filterNAVector]
 ```
 ## Data explanation
-___
 
 After initial filtering our dataset have following properties:
 
@@ -88,7 +82,6 @@ summary.data.frame(PdbFilteredData)
 ```
 
 ## Variables correlation
-___
 
 All plots uses significance test:
 ```{r variables-correlation-sig-test, cache=TRUE}
@@ -133,7 +126,6 @@ corrplot(correlationMatrix, order = "AOE", tl.cex = 0.4, tl.col = "black", p.mat
 
 ## Some statistics
 ### Number of examples per `res_name`
-___
 
 
 ```{r stats, cache=TRUE}
@@ -151,7 +143,6 @@ theme_minimal()
 ```
 
 ### Distribution of atom numbers and electron numbers
-___
 
   
 ```{r stats3, out.width = 900, cache=TRUE, message=FALSE}
@@ -168,7 +159,6 @@ theme_minimal()
 ```
 
 ### Heatmap based on atoms and electrons distributions
-___
 
   * X - `local_res_atom_non_h_count`, Y - `local_res_atom_non_h_electron_sum`
 
@@ -241,7 +231,6 @@ grid.draw(gt)
 ```
 
 ### Ten classes with most inconsonant atom number
-___
 
 
 ```{r stats5, cache=TRUE}
@@ -271,7 +260,6 @@ kable(atomInconsonance)
 ```
 
 ### Ten classes with most inconsonant electron number
-___
 
 
 ```{r stats6, cache=TRUE}
@@ -301,7 +289,6 @@ kable(electronInconsonance)
 ```
 
 ### Distribution of all columns with `part_01` prefix
-___
 
 ```{r stats7, cache= TRUE, warning=FALSE}
 partColumns <- PdbFilteredData %>% 
