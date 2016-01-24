@@ -1,0 +1,310 @@
+---
+title: "Protein DB"
+author: "Ghanyy, 106080"
+date: "19 listopada 2015"
+output: html_document
+---
+
+
+# Introduction
+
+Purpose of this project is to analyse data from [Protein Data Bank](http://www.rcsb.org/) (PDB) using some basic [R](https://www.r-project.org/) functionalities.
+
+# Table of contents
+
+1. [Libraries](#libraries)
+2. [Initialisation](#initialisation)
+3. [Data preparation](#data-preparation)
+4. [Data explanation](#data-explanation)
+5. [Variables correlation](#variables-correlation)
+6. [Some statistics](#some-statistics)
+  * [Number of examples per `res_name`](#number-of-examples-per-res_name)
+  * [Distribution of atom numbers and electron numbers](#distribution-of-atom-numbers-and-electron-numbers) 
+  * [Heatmap based on atoms and electrons distributions](#heatmap-based-on-atoms-and-electrons-distributions)
+  * [Ten classes with most inconsonant atom number](#ten-classes-with-most-inconsonant-atom-number)
+  * [Ten classes with most inconsonant electron number](#ten-classes-with-most-inconsonant-electron-number)
+  * [Distribution of all columns with `part_01` prefix](#distribution-of-all-columns-with-part_01-prefix)
+  
+## Libraries
+
+Following libraries were used:
+```{r libraries, message=FALSE}
+library(knitr) # provides a general-purpose tool for dynamic report generation.
+library(dplyr) # data manipulation tools for working with data frames.
+library(ggplot2) # powerful graphics language for creating elegant and complex plots.
+library(gtable) # marginal histograms in ggplot2.
+library(reshape2) # allows flexibly restructure and aggregate data using just two functions: melt and cast.
+library(corrplot) # used for displaying correlation matrix.
+```
+
+## Initialisation
+
+  In order to obtain the same results every time seed is fixed:
+```{r initialisation, cache=TRUE}
+set.seed(106080)
+```
+
+## Data preparation
+
+  1. Load raw data from file:
+```{r data-preparation, cache=TRUE}
+fileDir <- paste(getwd(), "all_summary.txt", sep = "/") # data should be in the same directory as this script
+PdbRawData <- read.csv(file = fileDir, dec = ".", sep = ";", header = TRUE, na.strings = c("nan"), encoding = "UTF-8", fileEncoding = "UTF-8")
+```
+  2. Delete rows unnecessary for this project:
+    * `res_name` != `DA`, `DC`, `DT`, `DU`, `DG`, `DI`, `UNK`, `UNX`, `UNL`, `PR`, `PD`, `Y1`, `EU`, `N`, `15P`, `UQ`, `PX4`, `NAN`
+    * Leave only unique pairs of values `pdb_code`, `res_name`
+
+```{r data-preparation2, cache=TRUE}
+filterValuesVector <- c("DA", "DC", "DT", "DU", "DG", "DI", "UNK", "UNX", "UNL", "PR", "PD", "Y1", "EU", "N", "15P", "UQ", "PX4")
+PdbFilteredData <- PdbRawData %>% 
+filter(!(res_name %in% filterValuesVector) | is.na(res_name)) %>% 
+distinct(pdb_code, res_name)
+```
+  3. Delete columns with only `NA` values:
+```{r data-preparation3, cache=TRUE}
+filterNAVector <- !sapply(PdbFilteredData, function(x)all(is.na(x)))
+PdbFilteredData <- PdbFilteredData[filterNAVector]
+```
+## Data explanation
+
+After initial filtering our dataset have following properties:
+
+[Next section...](#variables-correlation)
+
+  1. Column classes and sample:
+```{r data-explanation, cache=TRUE}
+str(PdbFilteredData)
+```
+  2. Summary:
+```{r data-explanation2, cache=TRUE}
+summary.data.frame(PdbFilteredData)
+```
+
+## Variables correlation
+
+All plots uses significance test:
+```{r variables-correlation-sig-test, cache=TRUE}
+cor.mtest <- function(mat, conf.level = 0.95) {
+    mat <- as.matrix(mat)
+    n <- ncol(mat)
+    p.mat <- lowCI.mat <- uppCI.mat <- matrix(NA, n, n)
+    diag(p.mat) <- 0
+    diag(lowCI.mat) <- diag(uppCI.mat) <- 1
+    for (i in 1:(n - 1)) {
+        for (j in (i + 1):n) {
+            tmp <- cor.test(mat[, i], mat[, j], conf.level = conf.level)
+            p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+            lowCI.mat[i, j] <- lowCI.mat[j, i] <- tmp$conf.int[1]
+            uppCI.mat[i, j] <- uppCI.mat[j, i] <- tmp$conf.int[2]
+        }
+    }
+    return(list(p.mat, lowCI.mat, uppCI.mat))
+}
+```
+
+  1. Correlation between columns with prefix `local`, `local_min` was excluded due to `NA` values:
+  
+```{r variables-correlation, out.width = 900, cache=TRUE}
+localColumns <- PdbFilteredData %>% select(starts_with("local"), -local_min)
+localColumns <- localColumns[sapply(localColumns, is.numeric)]
+correlationMatrix <- cor(localColumns, use = "complete.obs", method = "pearson")
+sigTest <- cor.mtest(localColumns, 0.95)
+
+corrplot(correlationMatrix, order = "AOE", tl.cex = 0.5, tl.col = "black", p.mat = sigTest[[1]], sig.level = 0.05, insig = "blank", cl.pos = "b")
+```
+
+  2. Correlation between remaining columns, prefix `part` and `dict` were excluded due to high correlation, `solvent_radius`, `solvent_opening_radius`, `resolution_max_limit` and `grid_space` were excluded due to `NA`:
+
+```{r variables-correlation2, out.width = 1200}
+remainingColumns <- PdbFilteredData %>% select(-starts_with("part"), -starts_with("dict"), -starts_with("local"), -solvent_radius, -solvent_opening_radius, -resolution_max_limit, -grid_space)
+remainingColumns <- remainingColumns[sapply(remainingColumns, is.numeric)]
+correlationMatrix <- cor(remainingColumns, use = "complete.obs", method = "pearson")
+sigTest <- cor.mtest(remainingColumns, 0.95)
+corrplot(correlationMatrix, order = "AOE", tl.cex = 0.4, tl.col = "black", p.mat = sigTest[[1]], sig.level = 0.05, insig = "blank", cl.pos = "b")
+```
+
+## Some statistics
+### Number of examples per `res_name`
+
+
+```{r stats, cache=TRUE}
+resNameCount <- PdbFilteredData %>% select(res_name) %>% group_by(res_name) %>% summarise(count = n()) %>% arrange(desc(count), res_name)
+head(resNameCount, 20)
+```
+```{r stats2, out.width = 900, echo=FALSE, cache=TRUE}
+resNamePlot <- resNameCount %>% select(count) %>% arrange(count)
+ggplot(resNameCount, aes(x = count)) + 
+xlab("count(res_name)") +
+ylab("density") +
+geom_density(kernel = "gaussian", fill = "steelblue") + 
+scale_y_sqrt() + 
+theme_minimal()
+```
+
+### Distribution of atom numbers and electron numbers
+
+  
+```{r stats3, out.width = 900, cache=TRUE, message=FALSE}
+atomsAndElectrons <- PdbFilteredData %>% 
+select(local_res_atom_non_h_count, local_res_atom_non_h_electron_sum) %>% 
+transmute(atoms = local_res_atom_non_h_count, electrons = local_res_atom_non_h_electron_sum)
+atomsAndElectrons <- melt(atomsAndElectrons)
+
+ggplot(atomsAndElectrons) + 
+geom_freqpoly(aes(x = value, y = ..density.., colour = variable), binwidth = 1) + 
+xlab("count(variable)") + 
+scale_x_sqrt() +
+theme_minimal()
+```
+
+### Heatmap based on atoms and electrons distributions
+
+  * X - `local_res_atom_non_h_count`, Y - `local_res_atom_non_h_electron_sum`
+
+```{r stats4, out.width = 650, message=FALSE, cache=TRUE}
+atomsAndElectrons2 <- PdbFilteredData %>% 
+select(local_res_atom_non_h_count, local_res_atom_non_h_electron_sum) %>% 
+transmute(atoms = local_res_atom_non_h_count, electrons = local_res_atom_non_h_electron_sum)
+atomsAndElectrons2 <- melt(atomsAndElectrons2, id.vars=c("atoms", "electrons"))
+
+secretPlot <- ggplot(atomsAndElectrons2, aes(x = electrons, y = atoms)) +
+stat_density2d(geom="tile", aes(fill = ..density..), contour = FALSE, binwidth = 1) +
+coord_cartesian(xlim = c(0,650), ylim = c(0,100)) +
+scale_x_continuous(breaks=seq(100, 700, 100)) +
+scale_y_continuous(breaks=seq(20, 100, 20)) +
+scale_fill_distiller(palette = "Spectral", trans = "reverse")  +
+theme_classic() +
+theme(legend.position="none", axis.title=element_blank(), axis.line.y=element_blank(), text=element_text(size=16, family="Liberation Sans"), axis.text.y=element_text(angle=90, hjust=0.5))
+
+# tutorial - http://sandymuspratt.blogspot.co.uk/2013/02/scatterplot-with-marginal-boxplots.html
+theme_remove_all <- theme(axis.text = element_blank(),
+  line = element_blank(),
+  panel.background = element_blank(),
+  panel.margin = unit(0, "lines"),
+  axis.title = element_blank(),
+  axis.ticks =  element_blank(),
+  axis.ticks.margin = unit(0, "lines"),
+  axis.ticks.length = unit(0, "cm"))
+
+xMargin <- ggplot(atomsAndElectrons2, aes(x = electrons)) +
+geom_histogram(binwidth=6.5, fill="red", color="black") +
+scale_x_continuous(breaks=seq(0, 700, 100)) +
+theme_remove_all +
+theme(plot.margin= unit(c(-0.5, 0, 0, -0.5), "lines"))
+
+yMargin <- ggplot(atomsAndElectrons2, aes(x = atoms)) +
+geom_histogram(binwidth=1, fill="red", color="black") +
+scale_x_continuous(breaks=seq(0, 100, 20)) +
+coord_flip() +
+theme_remove_all +
+theme(plot.margin= unit(c(0, -0.5, -0.5, 0), "lines"))
+
+# Get the gtables
+gt1 <- ggplot_gtable(ggplot_build(secretPlot))
+gt2 <- ggplot_gtable(ggplot_build(xMargin))
+gt3 <- ggplot_gtable(ggplot_build(yMargin))
+
+# Get maximum widths and heights for x-axis and y-axis title and text
+maxWidth = unit.pmax(gt1$widths[2:3], gt2$widths[2:3])
+maxHeight = unit.pmax(gt1$heights[4:5], gt3$heights[4:5])
+
+# Set the maximums in the gtables for gt1, gt2 and gt3
+gt1$widths[2:3] <- as.list(maxWidth)
+gt2$widths[2:3] <- as.list(maxWidth)
+
+gt1$heights[4:5] <- as.list(maxHeight)
+gt3$heights[4:5] <- as.list(maxHeight)
+
+# Combine the scatterplot with the two marginal boxplots
+# Create a new gtable
+gt <- gtable(widths = unit(c(7, 2), "null"), height = unit(c(2, 7), "null"))
+
+# Instert gt1, gt2 and gt3 into the new gtable
+gt <- gtable_add_grob(gt, gt1, 2, 1)
+gt <- gtable_add_grob(gt, gt2, 1, 1)
+gt <- gtable_add_grob(gt, gt3, 2, 2)
+
+# And render the plot
+grid.newpage()
+grid.draw(gt)
+```
+
+### Ten classes with most inconsonant atom number
+
+
+```{r stats5, cache=TRUE}
+top10 <- PdbFilteredData %>% 
+select(class=res_name, local_res_atom_non_h_count, dict_atom_non_h_count) %>%
+mutate(difference=abs(local_res_atom_non_h_count - dict_atom_non_h_count)) %>%
+arrange(desc(difference)) %>%
+distinct(class) %>%
+slice(1:10)
+
+atomInconsonance <- PdbFilteredData %>% 
+select(class=res_name, local_res_atom_non_h_count, dict_atom_non_h_count) %>%
+mutate(difference=abs(local_res_atom_non_h_count - dict_atom_non_h_count)) %>%
+filter(class %in% top10$class) %>%
+group_by(class) %>%
+summarise(minimum = min(difference),
+          maximum = max(difference),
+          mean = mean(difference),
+          median = median(difference),
+          variation = var(difference),
+          std_dev = sd(difference)) %>%
+ungroup() %>%
+arrange(desc(maximum))
+
+kable(atomInconsonance)
+
+```
+
+### Ten classes with most inconsonant electron number
+
+
+```{r stats6, cache=TRUE}
+top10 <- PdbFilteredData %>% 
+select(class=res_name, local_res_atom_non_h_electron_sum, dict_atom_non_h_electron_sum) %>%
+mutate(difference=abs(local_res_atom_non_h_electron_sum - dict_atom_non_h_electron_sum)) %>%
+arrange(desc(difference)) %>%
+distinct(class) %>%
+slice(1:10)
+
+electronInconsonance <- PdbFilteredData %>% 
+select(class=res_name, local_res_atom_non_h_electron_sum, dict_atom_non_h_electron_sum) %>%
+mutate(difference=abs(local_res_atom_non_h_electron_sum - dict_atom_non_h_electron_sum)) %>%
+filter(class %in% top10$class) %>%
+group_by(class) %>%
+summarise(minimum = min(difference),
+          maximum = max(difference),
+          mean = mean(difference),
+          median = median(difference),
+          variation = var(difference),
+          std_dev = sd(difference)) %>%
+ungroup() %>%
+arrange(desc(maximum))
+
+kable(electronInconsonance)
+
+```
+
+### Distribution of all columns with `part_01` prefix
+
+```{r stats7, cache= TRUE, warning=FALSE}
+partColumns <- PdbFilteredData %>% 
+select(starts_with("part_01"))
+
+for(colName in names(partColumns)) {
+  currCol <- partColumns[[colName]]
+  currColNoNA <- currCol[!is.na(currCol)]
+  currMean <- mean(currColNoNA)
+  currPlot <- ggplot(partColumns, aes(x = currCol)) + 
+  xlab(paste("count(", colName, ")")) +
+  ylab("density") +
+  geom_density(kernel = "gaussian", fill = "steelblue") + 
+  theme_minimal() +
+  geom_rug(sides="b", color="blue", size = 2, aes(x=currMean, y=0)) + 
+  geom_text(aes(label=round(currMean, 2), x=currMean, y=0), hjust=0.5, vjust=-1, color="blue")
+  print(currPlot)
+}
+```
