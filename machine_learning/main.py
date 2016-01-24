@@ -6,7 +6,8 @@
 # 5. Load grouped_res_name.txt which is one column file of length 11005 rows containing grouped res_name per row
 # concatenated with '_'
 # 6. Load testing data frame and extract column names in order to extract data for learning process
-# 7. Use DecissionTreeClassifier to teach simple res_name based classifier
+# 7. Use RandomForestClassifier to teach simple res_name based classifier
+# 8. Use RandomForestClassifier to teach grouped res_name_group based classifier
 
 
 import preparation as prep
@@ -30,8 +31,12 @@ if __name__ == "__main__":
 
     # first parameter is empty (in fact it's an id), ignore it
     data_columns = list(test_df.columns.values)[1:]
-
     data_frame_training_data = data_frame.loc[:, data_columns].values
-    data_frame_target = data_frame.loc[:, "res_name"].tolist()
 
-    simple_model = lrn.modelDTC(data_frame_training_data, data_frame_target)
+    data_frame_target = data_frame.loc[:, "res_name"].tolist()
+    data_frame_2_target = data_frame_2.loc[:, "res_name_group"].tolist()
+
+    data_frame_training_data = lrn.clean_data_values(data_frame_training_data)
+
+    simple_model = lrn.model_rfc(data_frame_training_data, data_frame_target, 20, 20, "data/tmp/simple_model.pkl")
+    grouped_model = lrn.model_rfc(data_frame_training_data, data_frame_2_target, 20, 20, "data/tmp/grouped_model.pkl")
