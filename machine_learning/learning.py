@@ -1,6 +1,7 @@
 # This code provide tools for preparation and creation of classifiers:
-# 1. Cleaning values extrcted directly from pandas data frame
-# 2. RandomForestClassifier creation using RandomizedSearchCV
+# 1. Cleaning values extracted directly from pandas data frame.
+# 2. RandomForestClassifier creation using RandomizedSearchCV.
+# 3. Make extremely minimalistic prediction for given test set.
 from sklearn.grid_search import RandomizedSearchCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import Imputer
@@ -35,3 +36,8 @@ def model_rfc(data, target, estimators_nbr, n_iter_search, joblib_dump_name):
 
     joblib.dump(clf, joblib_dump_name)
     return random_search
+
+
+def predict(model, test_data):
+    results = model.predict(test_data)
+    return results
